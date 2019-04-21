@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
 
 	"golang.org/x/net/html"
 )
@@ -14,12 +13,6 @@ import (
 // metaRefreshContentRegEx is used to match the 'content' attribute in a tag like this:
 //   <meta http-equiv="refresh" content="2;url=https://www.google.com">
 var metaRefreshContentRegEx = regexp.MustCompile(`^(\d?)\s?;\s?url=(.*)$`)
-
-// HTTPUserAgent may be passed into getHTTPResult as the default HTTP User-Agent header parameter
-const HTTPUserAgent = "github.com/lectio/resource"
-
-// HTTPTimeout may be passed into getHTTPResult function as the default HTTP timeout parameter
-const HTTPTimeout = time.Second * 90
 
 // Page manages the content of a URL target
 type Page struct {

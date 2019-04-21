@@ -45,7 +45,7 @@ func (suite *ContentSuite) CreateFile(url *url.URL, t Type) (*os.File, Issue) {
 	var issue Issue
 	destFile, err := os.Create(pathAndFileName)
 	if err != nil {
-		issue = newIssue(url.String(), IssueCode("SUITE_E-0001"), fmt.Sprintf("Unable to create file %q", pathAndFileName), true)
+		issue = newIssue(url.String(), "SUITE_E-0001", fmt.Sprintf("Unable to create file %q", pathAndFileName), true)
 	}
 	return destFile, issue
 }
@@ -75,7 +75,7 @@ func (suite *ContentSuite) TestBadTargetURL() {
 func (suite *ContentSuite) TestGoodTargetURLBadDest() {
 	_, issue := NewPageFromURL("https://t.co/fDxPF", suite)
 	suite.NotNil(issue, "Should get an error")
-	suite.Equal(IssueCode("RESOURCE_E-0300-HTTP-404"), issue.IssueCode(), "Should get proper error code")
+	suite.Equal("RESOURCE_E-0300-HTTP-404", issue.IssueCode(), "Should get proper error code")
 }
 
 func (suite *ContentSuite) TestOpenGraphMetaTags() {
