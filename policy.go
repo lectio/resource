@@ -20,3 +20,8 @@ type Policy interface {
 	ParseMetaDataInHTMLContent(*url.URL) bool
 	DownloadContent(*url.URL, *http.Response, Type) (bool, Attachment, []Issue)
 }
+
+// Lifecycle defines common creation / destruction methods
+type Lifecycle interface {
+	InspectURL(urlText string, policy Policy) (Content, Issue)
+}
