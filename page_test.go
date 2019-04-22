@@ -45,7 +45,7 @@ func (suite *ContentSuite) CreateFile(url *url.URL, t Type) (*os.File, Issue) {
 	var issue Issue
 	destFile, err := os.Create(pathAndFileName)
 	if err != nil {
-		issue = newIssue(url.String(), "SUITE_E-0001", fmt.Sprintf("Unable to create file %q", pathAndFileName), true)
+		issue = NewIssue(url.String(), "SUITE_E-0001", fmt.Sprintf("Unable to create file %q", pathAndFileName), true)
 	}
 	return destFile, issue
 }

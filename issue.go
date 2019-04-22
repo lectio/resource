@@ -42,7 +42,7 @@ type issue struct {
 	isError bool
 }
 
-func newIssue(context string, code string, message string, isError bool) Issue {
+func NewIssue(context string, code string, message string, isError bool) Issue {
 	result := new(issue)
 	result.context = context
 	result.code = code

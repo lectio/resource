@@ -29,11 +29,11 @@ type Page struct {
 // NewPageFromURL creates a content instance from the given URL and policy
 func NewPageFromURL(origURLtext string, policy Policy) (Content, Issue) {
 	if len(origURLtext) == 0 {
-		return nil, newIssue("BlankTargetURL", TargetURLIsBlank, "TargetURL is blank in resource.NewPageFromURL", true)
+		return nil, NewIssue("BlankTargetURL", TargetURLIsBlank, "TargetURL is blank in resource.NewPageFromURL", true)
 	}
 
 	if policy == nil {
-		return nil, newIssue(origURLtext, PolicyIsNil, "Policy is nil in resource.NewPageFromURL", true)
+		return nil, NewIssue(origURLtext, PolicyIsNil, "Policy is nil in resource.NewPageFromURL", true)
 	}
 
 	// Use the standard Go HTTP library method to retrieve the Content; the
@@ -44,12 +44,12 @@ func NewPageFromURL(origURLtext string, policy Policy) (Content, Issue) {
 	}
 	req, reqErr := http.NewRequest(http.MethodGet, origURLtext, nil)
 	if reqErr != nil {
-		return nil, newIssue(origURLtext, UnableToCreateHTTPRequest, fmt.Sprintf("Unable to create HTTP request: %v", reqErr), true)
+		return nil, NewIssue(origURLtext, UnableToCreateHTTPRequest, fmt.Sprintf("Unable to create HTTP request: %v", reqErr), true)
 	}
 	req.Header.Set("User-Agent", policy.HTTPUserAgent())
 	resp, getErr := httpClient.Do(req)
 	if getErr != nil {
-		return nil, newIssue(origURLtext, UnableToExecuteHTTPGETRequest, fmt.Sprintf("Unable to execute HTTP GET request: %v", getErr), true)
+		return nil, NewIssue(origURLtext, UnableToExecuteHTTPGETRequest, fmt.Sprintf("Unable to execute HTTP GET request: %v", getErr), true)
 	}
 
 	if resp.StatusCode != 200 {
@@ -65,11 +65,11 @@ func NewPageFromHTTPResponse(url *url.URL, resp *http.Response, policy Policy) C
 	result.MetaPropertyTags = make(map[string]interface{})
 	result.TargetURL = url
 	if result.TargetURL == nil {
-		result.AllIssues = append(result.AllIssues, newIssue("NilTargetURL", TargetURLIsNil, "TargetURL is nil in resource.NewPageFromHTTPResponse", true))
+		result.AllIssues = append(result.AllIssues, NewIssue("NilTargetURL", TargetURLIsNil, "TargetURL is nil in resource.NewPageFromHTTPResponse", true))
 		return result
 	}
 	if policy == nil {
-		result.AllIssues = append(result.AllIssues, newIssue(url.String(), PolicyIsNil, "Policy is nil in resource.NewPageFromHTTPResponse", true))
+		result.AllIssues = append(result.AllIssues, NewIssue(url.String(), PolicyIsNil, "Policy is nil in resource.NewPageFromHTTPResponse", true))
 		return result
 	}
 
@@ -104,7 +104,7 @@ func NewPageFromHTTPResponse(url *url.URL, resp *http.Response, policy Policy) C
 func (p *Page) parsePageMetaData(url *url.URL, resp *http.Response) error {
 	doc, parseError := html.Parse(resp.Body)
 	if parseError != nil {
-		p.AllIssues = append(p.AllIssues, newIssue(url.String(), UnableToParseHTTPBody, parseError.Error(), true))
+		p.AllIssues = append(p.AllIssues, NewIssue(url.String(), UnableToParseHTTPBody, parseError.Error(), true))
 		return parseError
 	}
 	defer resp.Body.Close()
@@ -222,10 +222,10 @@ func (p Page) TargetURLText() string {
 // MetaTags returns tags that were parsed
 func (p Page) MetaTags() (MetaTags, Issue) {
 	if !p.IsHTML() {
-		return nil, newIssue(p.TargetURLText(), MetaTagsNotAvailableInNonHTMLContent, "Meta tags not available in non-HTML content", false)
+		return nil, NewIssue(p.TargetURLText(), MetaTagsNotAvailableInNonHTMLContent, "Meta tags not available in non-HTML content", false)
 	}
 	if !p.HTMLParsed {
-		return nil, newIssue(p.TargetURLText(), MetaTagsNotAvailableInUnparsedHTML, "Meta tags not available in unparsed HTML (error or policy didn't request parsing)", false)
+		return nil, NewIssue(p.TargetURLText(), MetaTagsNotAvailableInUnparsedHTML, "Meta tags not available in unparsed HTML (error or policy didn't request parsing)", false)
 	}
 	return p.MetaPropertyTags, nil
 }

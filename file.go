@@ -92,11 +92,11 @@ func (a *FileAttachment) Delete() {
 func DownloadFile(policy FileAttachmentPolicy, url *url.URL, resp *http.Response, typ Type) (bool, Attachment, []Issue) {
 	var issues []Issue
 	if url == nil {
-		issues = append(issues, newIssue("NilTargetURL", TargetURLIsNil, "url is nil in resource.DownloadFile", true))
+		issues = append(issues, NewIssue("NilTargetURL", TargetURLIsNil, "url is nil in resource.DownloadFile", true))
 		return false, nil, issues
 	}
 	if resp == nil {
-		issues = append(issues, newIssue("NilHTTPResponse", TargetURLIsNil, "http.Response is nil in resource.DownloadFile", true))
+		issues = append(issues, NewIssue("NilHTTPResponse", TargetURLIsNil, "http.Response is nil in resource.DownloadFile", true))
 		return false, nil, issues
 	}
 
@@ -105,7 +105,7 @@ func DownloadFile(policy FileAttachmentPolicy, url *url.URL, resp *http.Response
 	result.ContentType = typ
 
 	if policy == nil {
-		result.AllIssues = append(result.AllIssues, newIssue(url.String(), PolicyIsNil, "Policy is nil in resource.DownloadFile", true))
+		result.AllIssues = append(result.AllIssues, NewIssue(url.String(), PolicyIsNil, "Policy is nil in resource.DownloadFile", true))
 		return false, result, result.AllIssues
 	}
 
@@ -120,7 +120,7 @@ func DownloadFile(policy FileAttachmentPolicy, url *url.URL, resp *http.Response
 	result.DestPath = destFile.Name()
 	_, err := io.Copy(destFile, resp.Body)
 	if err != nil {
-		result.AllIssues = append(result.AllIssues, newIssue(url.String(), CopyErrorDuringFileDownload, err.Error(), true))
+		result.AllIssues = append(result.AllIssues, NewIssue(url.String(), CopyErrorDuringFileDownload, err.Error(), true))
 		return false, result, result.AllIssues
 	}
 	destFile.Close()
@@ -129,7 +129,7 @@ func DownloadFile(policy FileAttachmentPolicy, url *url.URL, resp *http.Response
 		// Open the just-downloaded file again since it was closed already
 		file, err := os.Open(result.DestPath)
 		if err != nil {
-			result.AllIssues = append(result.AllIssues, newIssue(url.String(), UnableToInspectFileType, err.Error(), true))
+			result.AllIssues = append(result.AllIssues, NewIssue(url.String(), UnableToInspectFileType, err.Error(), true))
 			return false, result, result.AllIssues
 		}
 

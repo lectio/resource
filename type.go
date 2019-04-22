@@ -18,7 +18,7 @@ func NewPageType(url *url.URL, contentType string) (Type, Issue) {
 	var mediaTypeError error
 	result.MedType, result.MedTypeParams, mediaTypeError = mime.ParseMediaType(contentType)
 	if mediaTypeError != nil {
-		return result, newIssue(url.String(), UnableToInspectMediaTypeFromContentType, mediaTypeError.Error(), true)
+		return result, NewIssue(url.String(), UnableToInspectMediaTypeFromContentType, mediaTypeError.Error(), true)
 	}
 	return result, nil
 }
