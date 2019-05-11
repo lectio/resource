@@ -39,9 +39,7 @@ func NewPageFromURL(origURLtext string, policy Policy) (Content, Issue) {
 	// Use the standard Go HTTP library method to retrieve the Content; the
 	// default will automatically follow redirects (e.g. HTTP redirects)
 	// TODO: Consider using [HTTP Cache](https://github.com/gregjones/httpcache)
-	httpClient := http.Client{
-		Timeout: policy.HTTPTimeout(),
-	}
+	httpClient := policy.HTTPClient()
 	req, reqErr := http.NewRequest(http.MethodGet, origURLtext, nil)
 	if reqErr != nil {
 		return nil, NewIssue(origURLtext, UnableToCreateHTTPRequest, fmt.Sprintf("Unable to create HTTP request: %v", reqErr), true)

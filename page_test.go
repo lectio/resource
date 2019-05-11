@@ -7,22 +7,22 @@ import (
 	"os"
 	"path"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/suite"
 )
 
 type ContentSuite struct {
 	suite.Suite
-	fileNum int
+	fileNum    int
+	httpClient *http.Client
+}
+
+func (suite ContentSuite) HTTPClient() *http.Client {
+	return suite.httpClient
 }
 
 func (suite ContentSuite) HTTPUserAgent() string {
 	return HTTPUserAgent
-}
-
-func (suite ContentSuite) HTTPTimeout() time.Duration {
-	return HTTPTimeout
 }
 
 func (suite ContentSuite) DetectRedirectsInHTMLContent(url *url.URL) bool {
@@ -55,6 +55,9 @@ func (suite ContentSuite) AutoAssignExtension(url *url.URL, t Type) bool {
 }
 
 func (suite *ContentSuite) SetupSuite() {
+	suite.httpClient = &http.Client{
+		Timeout: HTTPTimeout,
+	}
 }
 
 func (suite *ContentSuite) TearDownSuite() {
