@@ -44,7 +44,7 @@ func NewPageFromURL(origURLtext string, policy Policy) (Content, Issue) {
 	if reqErr != nil {
 		return nil, NewIssue(origURLtext, UnableToCreateHTTPRequest, fmt.Sprintf("Unable to create HTTP request: %v", reqErr), true)
 	}
-	req.Header.Set("User-Agent", policy.HTTPUserAgent())
+	policy.PrepareRequest(httpClient, req)
 	resp, getErr := httpClient.Do(req)
 	if getErr != nil {
 		return nil, NewIssue(origURLtext, UnableToExecuteHTTPGETRequest, fmt.Sprintf("Unable to execute HTTP GET request: %v", getErr), true)
