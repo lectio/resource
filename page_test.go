@@ -25,10 +25,6 @@ func (suite ContentSuite) PrepareRequest(client *http.Client, req *http.Request)
 	req.Header.Set("User-Agent", "github.com/lectio/resource/test")
 }
 
-func (suite ContentSuite) HTTPUserAgent() string {
-	return HTTPUserAgent
-}
-
 func (suite ContentSuite) DetectRedirectsInHTMLContent(url *url.URL) bool {
 	return true
 }
