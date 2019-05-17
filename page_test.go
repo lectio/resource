@@ -107,6 +107,16 @@ func (suite *ContentSuite) TestGoodURLWithContentBasedRedirect() {
 	suite.Equal(htmlRedirectURLText, "https://www.netspective.com/?utm_source=lectio_harvester_resource_test.go&utm_medium=go.TestSuite&utm_campaign=harvester.ResourceSuite")
 }
 
+func (suite *ContentSuite) TestResolvedURLNotCleaned() {
+	ctx := context.Background()
+
+	page, issue := suite.factory.PageFromURL(ctx, "https://t.co/ELrZmo81wI", suite)
+	suite.Nil(issue, "Should not see error")
+	suite.NotNil(page, "The destination content should be available")
+	suite.True(page.IsValid(), "The destination content should be valid")
+	suite.True(page.IsHTML(), "The destination content should be HTML")
+}
+
 func (suite *ContentSuite) TestGoodURLWithAttachment() {
 	ctx := context.Background()
 

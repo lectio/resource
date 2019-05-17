@@ -185,6 +185,7 @@ func (f *DefaultFactory) pageFromHTTPResponse(ctx context.Context, url *url.URL,
 		if result.IsHTML() && (f.detectRedirectsInHTMLContent(ctx, url) || f.parseMetaDataInHTMLContent(ctx, url)) {
 			result.parsePageMetaData(ctx, url, resp)
 			result.HTMLParsed = true
+			result.valid = true
 			return result, nil
 		}
 	}
