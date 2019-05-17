@@ -6,7 +6,6 @@ import (
 	"golang.org/x/xerrors"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 )
 
@@ -39,11 +38,6 @@ type ContentDownloader interface {
 
 type ContentDownloaderErrorPolicy interface {
 	StopOnDownloadError(context.Context, *url.URL, Type, error) bool
-}
-
-type FileAttachmentCreator interface {
-	CreateFile(context.Context, *url.URL, Type) (*os.File, error)
-	AutoAssignExtension(context.Context, *url.URL, Type) bool
 }
 
 type HTTPClientProvider interface {

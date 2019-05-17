@@ -14,9 +14,9 @@ import (
 	"github.com/h2non/filetype/types"
 )
 
-// FileAttachmentPolicy allows files of different types to be created
-type FileAttachmentPolicy interface {
-	CreateFile(*url.URL, Type) (context.Context, *os.File, error)
+// FileAttachmentCreator allows files of different types to be created
+type FileAttachmentCreator interface {
+	CreateFile(context.Context, *url.URL, Type) (*os.File, error)
 	AutoAssignExtension(context.Context, *url.URL, Type) bool
 }
 

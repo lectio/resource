@@ -25,8 +25,7 @@ type Page struct {
 	MetaPropertyTags             map[string]interface{} `json:"metaPropertyTags"`             // if IsHTML() is true, a collection of all meta data like <meta property="og:site_name" content="Netspective" /> or <meta name="twitter:title" content="text" />
 	DownloadedAttachment         Attachment             `json:"attachment"`
 
-	valid          bool
-	warningTracker WarningTracker
+	valid bool
 }
 
 func (p *Page) parsePageMetaData(ctx context.Context, url *url.URL, resp *http.Response) error {
