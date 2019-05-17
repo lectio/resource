@@ -1,6 +1,9 @@
 package resource
 
 import (
+	"context"
+	"fmt"
+	"golang.org/x/xerrors"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,8 +16,8 @@ import (
 
 // FileAttachmentPolicy allows files of different types to be created
 type FileAttachmentPolicy interface {
-	CreateFile(*url.URL, Type) (*os.File, Issue)
-	AutoAssignExtension(*url.URL, Type) bool
+	CreateFile(*url.URL, Type) (context.Context, *os.File, error)
+	AutoAssignExtension(context.Context, *url.URL, Type) bool
 }
 
 // FileAttachment manages any content that was downloaded for further inspection
@@ -23,7 +26,7 @@ type FileAttachment struct {
 	TargetURL   *url.URL   `json:"url"`
 	DestPath    string     `json:"destPath"`
 	FileType    types.Type `json:"fileType"`
-	AllIssues   []Issue    `json:"issues"`
+	Valid       bool
 }
 
 // URL is the resource locator for this content
@@ -31,50 +34,9 @@ func (a FileAttachment) URL() *url.URL {
 	return a.TargetURL
 }
 
-// Issues contains the problems in this link plus satisfies the Link interface
-func (a FileAttachment) Issues() Issues {
-	return a
-}
-
-// ErrorsAndWarnings contains the problems in this link plus satisfies the Link.Issues interface
-func (a FileAttachment) ErrorsAndWarnings() []Issue {
-	return a.AllIssues
-}
-
-// IssueCounts returns the total, errors, and warnings counts
-func (a FileAttachment) IssueCounts() (uint, uint, uint) {
-	if a.AllIssues == nil {
-		return 0, 0, 0
-	}
-	var errors, warnings uint
-	for _, i := range a.AllIssues {
-		if i.IsError() {
-			errors++
-		} else {
-			warnings++
-		}
-	}
-	return uint(len(a.AllIssues)), errors, warnings
-}
-
-// HandleIssues loops through each issue and calls a particular handler
-func (a FileAttachment) HandleIssues(errorHandler func(Issue), warningHandler func(Issue)) {
-	if a.AllIssues == nil {
-		return
-	}
-	for _, i := range a.AllIssues {
-		if i.IsError() && errorHandler != nil {
-			errorHandler(i)
-		}
-		if i.IsWarning() && warningHandler != nil {
-			warningHandler(i)
-		}
-	}
-}
-
 // IsValid returns true if there are no errors
 func (a FileAttachment) IsValid() bool {
-	return a.AllIssues == nil || len(a.AllIssues) == 0
+	return a.Valid
 }
 
 // Type returns the results of content inspection
@@ -89,48 +51,41 @@ func (a *FileAttachment) Delete() {
 
 // DownloadFile will download the URL as an "attachment" to a local file.
 // It's efficient because it will write as it downloads and not load the whole file into memory.
-func DownloadFile(policy FileAttachmentPolicy, url *url.URL, resp *http.Response, typ Type) (bool, Attachment, []Issue) {
-	var issues []Issue
+func DownloadFile(ctx context.Context, creator fileAttachmentCreator, url *url.URL, resp *http.Response, typ Type) (bool, Attachment, error) {
 	if url == nil {
-		issues = append(issues, NewIssue("NilTargetURL", TargetURLIsNil, "url is nil in resource.DownloadFile", true))
-		return false, nil, issues
+		return false, nil, fmt.Errorf("url is nil in resource.DownloadFile")
 	}
 	if resp == nil {
-		issues = append(issues, NewIssue("NilHTTPResponse", TargetURLIsNil, "http.Response is nil in resource.DownloadFile", true))
-		return false, nil, issues
+		return false, nil, fmt.Errorf("http.Response is nil in resource.DownloadFile")
 	}
 
 	result := new(FileAttachment)
 	result.TargetURL = url
 	result.ContentType = typ
 
-	if policy == nil {
-		result.AllIssues = append(result.AllIssues, NewIssue(url.String(), PolicyIsNil, "Policy is nil in resource.DownloadFile", true))
-		return false, result, result.AllIssues
+	if creator == nil {
+		return false, result, fmt.Errorf("Policy is nil in resource.DownloadFile")
 	}
 
-	destFile, issue := policy.CreateFile(url, typ)
-	if issue != nil {
-		result.AllIssues = append(result.AllIssues, issue)
-		return false, result, result.AllIssues
+	destFile, err := creator.CreateFile(ctx, url, typ)
+	if err != nil {
+		return false, result, xerrors.Errorf("Unable to create file in resource.DownloadFile: %w", err)
 	}
 
 	defer destFile.Close()
 	defer resp.Body.Close()
 	result.DestPath = destFile.Name()
-	_, err := io.Copy(destFile, resp.Body)
+	_, err = io.Copy(destFile, resp.Body)
 	if err != nil {
-		result.AllIssues = append(result.AllIssues, NewIssue(url.String(), CopyErrorDuringFileDownload, err.Error(), true))
-		return false, result, result.AllIssues
+		return false, result, xerrors.Errorf("Copy error during file download in resource.DownloadFile: %w", err)
 	}
 	destFile.Close()
 
-	if policy.AutoAssignExtension(url, typ) {
+	if creator.AutoAssignExtension(ctx, url, typ) {
 		// Open the just-downloaded file again since it was closed already
 		file, err := os.Open(result.DestPath)
 		if err != nil {
-			result.AllIssues = append(result.AllIssues, NewIssue(url.String(), UnableToInspectFileType, err.Error(), true))
-			return false, result, result.AllIssues
+			return false, result, xerrors.Errorf("Unable to inspect file type in resource.DownloadFile: %w", err)
 		}
 
 		// We only have to pass the file header = first 261 bytes
@@ -150,5 +105,6 @@ func DownloadFile(policy FileAttachmentPolicy, url *url.URL, resp *http.Response
 		}
 	}
 
-	return true, result, result.AllIssues
+	result.Valid = true
+	return true, result, nil
 }

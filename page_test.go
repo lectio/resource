@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,74 +16,74 @@ type ContentSuite struct {
 	suite.Suite
 	fileNum    int
 	httpClient *http.Client
+	factory    Factory
 }
 
-func (suite ContentSuite) HTTPClient() *http.Client {
+func (suite ContentSuite) HTTPClient(ctx context.Context) *http.Client {
 	return suite.httpClient
 }
 
-func (suite ContentSuite) PrepareRequest(client *http.Client, req *http.Request) {
+func (suite ContentSuite) PrepareRequest(ctx context.Context, client *http.Client, req *http.Request) {
 	req.Header.Set("User-Agent", "github.com/lectio/resource/test")
 }
 
-func (suite ContentSuite) DetectRedirectsInHTMLContent(url *url.URL) bool {
+func (suite ContentSuite) DetectRedirectsInHTMLContent(ctx context.Context, url *url.URL) bool {
 	return true
 }
 
-func (suite ContentSuite) ParseMetaDataInHTMLContent(url *url.URL) bool {
+func (suite ContentSuite) ParseMetaDataInHTMLContent(ctx context.Context, url *url.URL) bool {
 	return true
 }
 
 // DownloadContent satisfies Policy method
-func (suite *ContentSuite) DownloadContent(url *url.URL, resp *http.Response, typ Type) (bool, Attachment, []Issue) {
-	return DownloadFile(suite, url, resp, typ)
+func (suite *ContentSuite) DownloadContent(ctx context.Context, url *url.URL, resp *http.Response, typ Type) (bool, Attachment, error) {
+	return DownloadFile(ctx, suite, url, resp, typ)
 }
 
 // CreateFile satisfies FileAttachmentPolicy method
-func (suite *ContentSuite) CreateFile(url *url.URL, t Type) (*os.File, Issue) {
+func (suite *ContentSuite) CreateFile(ctx context.Context, url *url.URL, t Type) (*os.File, error) {
 	pathAndFileName := fmt.Sprintf("tempFile-%d", suite.fileNum)
 	suite.fileNum++
-	var issue Issue
 	destFile, err := os.Create(pathAndFileName)
 	if err != nil {
-		issue = NewIssue(url.String(), "SUITE_E-0001", fmt.Sprintf("Unable to create file %q", pathAndFileName), true)
+		return nil, err
 	}
-	return destFile, issue
+	return destFile, nil
 }
 
-func (suite ContentSuite) AutoAssignExtension(url *url.URL, t Type) bool {
+func (suite ContentSuite) AutoAssignExtension(ctx context.Context, url *url.URL, t Type) bool {
 	return true
 }
 
 func (suite *ContentSuite) SetupSuite() {
-	suite.httpClient = &http.Client{
-		Timeout: HTTPTimeout,
-	}
+	suite.httpClient = &http.Client{}
+	suite.factory = NewFactory(suite)
 }
 
 func (suite *ContentSuite) TearDownSuite() {
 }
 
 func (suite *ContentSuite) TestBlankTargetURL() {
-	_, issue := NewPageFromURL("", suite)
-	suite.NotNil(issue, "Should get an error")
-	suite.Equal(TargetURLIsBlank, issue.IssueCode(), "Should get proper error code")
+	ctx := context.Background()
+	_, err := suite.factory.PageFromURL(ctx, "")
+	suite.NotNil(err, "Should get an error")
 }
 
 func (suite *ContentSuite) TestBadTargetURL() {
-	_, issue := NewPageFromURL("https://t", suite)
+	ctx := context.Background()
+	_, issue := suite.factory.PageFromURL(ctx, "https://t")
 	suite.NotNil(issue, "Should get an error")
-	suite.Equal(UnableToExecuteHTTPGETRequest, issue.IssueCode(), "Should get proper error code")
 }
 
 func (suite *ContentSuite) TestGoodTargetURLBadDest() {
-	_, issue := NewPageFromURL("https://t.co/fDxPF", suite)
+	ctx := context.Background()
+	_, issue := suite.factory.PageFromURL(ctx, "https://t.co/fDxPF")
 	suite.NotNil(issue, "Should get an error")
-	suite.Equal("RESOURCE_E-0300-HTTP-404", issue.IssueCode(), "Should get proper error code")
 }
 
 func (suite *ContentSuite) TestOpenGraphMetaTags() {
-	page, issue := NewPageFromURL("http://bit.ly/lectio_harvester_resource_test01", suite)
+	ctx := context.Background()
+	page, issue := suite.factory.PageFromURL(ctx, "http://bit.ly/lectio_harvester_resource_test01")
 	suite.Nil(issue, "Should not get an error")
 
 	value, _, _ := page.MetaTag("og:site_name")
@@ -96,7 +97,9 @@ func (suite *ContentSuite) TestOpenGraphMetaTags() {
 }
 
 func (suite *ContentSuite) TestGoodURLWithContentBasedRedirect() {
-	page, issue := NewPageFromURL("http://bit.ly/lectio_harvester_resource_test03", suite)
+	ctx := context.Background()
+
+	page, issue := suite.factory.PageFromURL(ctx, "http://bit.ly/lectio_harvester_resource_test03", suite)
 	suite.Nil(issue, "Should not get an error")
 
 	isHTMLRedirect, htmlRedirectURLText := page.Redirect()
@@ -105,7 +108,9 @@ func (suite *ContentSuite) TestGoodURLWithContentBasedRedirect() {
 }
 
 func (suite *ContentSuite) TestGoodURLWithAttachment() {
-	page, issue := NewPageFromURL("http://ceur-ws.org/Vol-1401/paper-05.pdf", suite)
+	ctx := context.Background()
+
+	page, issue := suite.factory.PageFromURL(ctx, "http://ceur-ws.org/Vol-1401/paper-05.pdf")
 	attachment := page.Attachment()
 	suite.Nil(issue, "Should not get an error")
 	suite.NotNil(attachment, "Should have an attachment")

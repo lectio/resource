@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -22,87 +23,15 @@ type Page struct {
 	IsHTMLRedirect               bool                   `json:"isHTMLRedirect"`
 	MetaRefreshTagContentURLText string                 `json:"metaRefreshTagContentURLText"` // if IsHTMLRedirect is true, then this is the value after url= in something like <meta http-equiv='refresh' content='delay;url='>
 	MetaPropertyTags             map[string]interface{} `json:"metaPropertyTags"`             // if IsHTML() is true, a collection of all meta data like <meta property="og:site_name" content="Netspective" /> or <meta name="twitter:title" content="text" />
-	AllIssues                    []Issue                `json:"issues"`
 	DownloadedAttachment         Attachment             `json:"attachment"`
+
+	valid          bool
+	warningTracker warningTracker
 }
 
-// NewPageFromURL creates a content instance from the given URL and policy
-func NewPageFromURL(origURLtext string, policy Policy) (Content, Issue) {
-	if len(origURLtext) == 0 {
-		return nil, NewIssue("BlankTargetURL", TargetURLIsBlank, "TargetURL is blank in resource.NewPageFromURL", true)
-	}
-
-	if policy == nil {
-		return nil, NewIssue(origURLtext, PolicyIsNil, "Policy is nil in resource.NewPageFromURL", true)
-	}
-
-	// Use the standard Go HTTP library method to retrieve the Content; the
-	// default will automatically follow redirects (e.g. HTTP redirects)
-	// TODO: Consider using [HTTP Cache](https://github.com/gregjones/httpcache)
-	httpClient := policy.HTTPClient()
-	req, reqErr := http.NewRequest(http.MethodGet, origURLtext, nil)
-	if reqErr != nil {
-		return nil, NewIssue(origURLtext, UnableToCreateHTTPRequest, fmt.Sprintf("Unable to create HTTP request: %v", reqErr), true)
-	}
-	policy.PrepareRequest(httpClient, req)
-	resp, getErr := httpClient.Do(req)
-	if getErr != nil {
-		return nil, NewIssue(origURLtext, UnableToExecuteHTTPGETRequest, fmt.Sprintf("Unable to execute HTTP GET request: %v", getErr), true)
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, newHTTPResponseIssue(origURLtext, resp.StatusCode, fmt.Sprintf("Invalid HTTP Response Status Code: %d", resp.StatusCode), true)
-	}
-
-	return NewPageFromHTTPResponse(resp.Request.URL, resp, policy), nil
-}
-
-// NewPageFromHTTPResponse will download and figure out what kind content we're dealing with
-func NewPageFromHTTPResponse(url *url.URL, resp *http.Response, policy Policy) Content {
-	result := new(Page)
-	result.MetaPropertyTags = make(map[string]interface{})
-	result.TargetURL = url
-	if result.TargetURL == nil {
-		result.AllIssues = append(result.AllIssues, NewIssue("NilTargetURL", TargetURLIsNil, "TargetURL is nil in resource.NewPageFromHTTPResponse", true))
-		return result
-	}
-	if policy == nil {
-		result.AllIssues = append(result.AllIssues, NewIssue(url.String(), PolicyIsNil, "Policy is nil in resource.NewPageFromHTTPResponse", true))
-		return result
-	}
-
-	contentType := resp.Header.Get("Content-Type")
-	if len(contentType) > 0 {
-		var issue Issue
-		result.PageType, issue = NewPageType(url, contentType)
-		if issue != nil {
-			result.AllIssues = append(result.AllIssues, issue)
-			return result
-		}
-		if result.IsHTML() && (policy.DetectRedirectsInHTMLContent(url) || policy.ParseMetaDataInHTMLContent(url)) {
-			result.parsePageMetaData(url, resp)
-			result.HTMLParsed = true
-			return result
-		}
-	}
-
-	ok, attachment, issues := policy.DownloadContent(url, resp, result.PageType)
-	if issues != nil {
-		for _, issue := range issues {
-			result.AllIssues = append(result.AllIssues, issue)
-		}
-	}
-	if ok && attachment != nil {
-		result.DownloadedAttachment = attachment
-	}
-
-	return result
-}
-
-func (p *Page) parsePageMetaData(url *url.URL, resp *http.Response) error {
+func (p *Page) parsePageMetaData(ctx context.Context, url *url.URL, resp *http.Response) error {
 	doc, parseError := html.Parse(resp.Body)
 	if parseError != nil {
-		p.AllIssues = append(p.AllIssues, NewIssue(url.String(), UnableToParseHTTPBody, parseError.Error(), true))
 		return parseError
 	}
 	defer resp.Body.Close()
@@ -153,50 +82,9 @@ func (p Page) URL() *url.URL {
 	return p.TargetURL
 }
 
-// Issues contains the problems in this link plus satisfies the Link interface
-func (p Page) Issues() Issues {
-	return p
-}
-
-// ErrorsAndWarnings contains the problems in this link plus satisfies the Link.Issues interface
-func (p Page) ErrorsAndWarnings() []Issue {
-	return p.AllIssues
-}
-
-// IssueCounts returns the total, errors, and warnings counts
-func (p Page) IssueCounts() (uint, uint, uint) {
-	if p.AllIssues == nil {
-		return 0, 0, 0
-	}
-	var errors, warnings uint
-	for _, i := range p.AllIssues {
-		if i.IsError() {
-			errors++
-		} else {
-			warnings++
-		}
-	}
-	return uint(len(p.AllIssues)), errors, warnings
-}
-
-// HandleIssues loops through each issue and calls a particular handler
-func (p Page) HandleIssues(errorHandler func(Issue), warningHandler func(Issue)) {
-	if p.AllIssues == nil {
-		return
-	}
-	for _, i := range p.AllIssues {
-		if i.IsError() && errorHandler != nil {
-			errorHandler(i)
-		}
-		if i.IsWarning() && warningHandler != nil {
-			warningHandler(i)
-		}
-	}
-}
-
 // IsValid returns true if there are no errors
 func (p Page) IsValid() bool {
-	return p.AllIssues == nil || len(p.AllIssues) == 0
+	return p.valid
 }
 
 // Type returns results of content inspection
@@ -218,18 +106,18 @@ func (p Page) TargetURLText() string {
 }
 
 // MetaTags returns tags that were parsed
-func (p Page) MetaTags() (MetaTags, Issue) {
+func (p Page) MetaTags() (MetaTags, error) {
 	if !p.IsHTML() {
-		return nil, NewIssue(p.TargetURLText(), MetaTagsNotAvailableInNonHTMLContent, "Meta tags not available in non-HTML content", false)
+		return nil, fmt.Errorf("Meta tags not available in non-HTML content")
 	}
 	if !p.HTMLParsed {
-		return nil, NewIssue(p.TargetURLText(), MetaTagsNotAvailableInUnparsedHTML, "Meta tags not available in unparsed HTML (error or policy didn't request parsing)", false)
+		return nil, fmt.Errorf("Meta tags not available in unparsed HTML (error or policy didn't request parsing)")
 	}
 	return p.MetaPropertyTags, nil
 }
 
 // MetaTag returns a specific parsed meta tag
-func (p Page) MetaTag(key string) (interface{}, bool, Issue) {
+func (p Page) MetaTag(key string) (interface{}, bool, error) {
 	tags, issue := p.MetaTags()
 	if issue != nil {
 		return nil, false, issue

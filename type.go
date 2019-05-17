@@ -12,13 +12,13 @@ type PageType struct {
 	MedTypeParams MediaTypeParams `json:"mediaTypeParams"`
 }
 
-func NewPageType(url *url.URL, contentType string) (Type, Issue) {
+func NewPageType(url *url.URL, contentType string) (Type, error) {
 	result := new(PageType)
 	result.ContType = contentType
 	var mediaTypeError error
 	result.MedType, result.MedTypeParams, mediaTypeError = mime.ParseMediaType(contentType)
 	if mediaTypeError != nil {
-		return result, NewIssue(url.String(), UnableToInspectMediaTypeFromContentType, mediaTypeError.Error(), true)
+		return result, mediaTypeError
 	}
 	return result, nil
 }
