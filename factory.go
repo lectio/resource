@@ -16,102 +16,103 @@ type Factory interface {
 }
 
 // NewFactory creates a new thread-safe resource factory
-func NewFactory(options ...interface{}) Factory {
-	result := &factory{}
-	result.initOptions(options...)
-	return result
+func NewFactory(options ...interface{}) *DefaultFactory {
+	f := &DefaultFactory{}
+
+	f.WarningTracker = f // we implemented a default version
+
+	f.initOptions(options...)
+	return f
 }
 
-type detectRedirectsPolicy interface {
+type DetectRedirectsPolicy interface {
 	DetectRedirectsInHTMLContent(context.Context, *url.URL) bool
 }
 
-type parseMetaDataInHTMLContentPolicy interface {
+type ParseMetaDataInHTMLContentPolicy interface {
 	ParseMetaDataInHTMLContent(context.Context, *url.URL) bool
 }
 
-type contentDownloader interface {
+type ContentDownloader interface {
 	DownloadContent(context.Context, *url.URL, *http.Response, Type) (bool, Attachment, error)
 }
 
-type contentDownloaderErrorPolicy interface {
+type ContentDownloaderErrorPolicy interface {
 	StopOnDownloadError(context.Context, *url.URL, Type, error) bool
 }
 
-type fileAttachmentCreator interface {
+type FileAttachmentCreator interface {
 	CreateFile(context.Context, *url.URL, Type) (*os.File, error)
 	AutoAssignExtension(context.Context, *url.URL, Type) bool
 }
 
-type httpClientProvider interface {
+type HTTPClientProvider interface {
 	HTTPClient(context.Context) *http.Client
 }
 
-type httpRequestPreparer interface {
+type HTTPRequestPreparer interface {
 	OnPrepareHTTPRequest(context.Context, *http.Client, *http.Request)
 }
 
-type warningTracker interface {
+type WarningTracker interface {
 	OnWarning(ctx context.Context, code, message string)
 }
 
-type factory struct {
-	clientProvider                   httpClientProvider
-	provideClientFunc                func(ctx context.Context) *http.Client
-	reqPreparer                      httpRequestPreparer
-	prepReqFunc                      func(ctx context.Context, client *http.Client, req *http.Request)
-	warningTracker                   warningTracker
-	detectRedirectsPolicy            detectRedirectsPolicy
-	parseMetaDataInHTMLContentPolicy parseMetaDataInHTMLContentPolicy
-	contentDownloader                contentDownloader
-	contentDownloaderErrorPolicy     contentDownloaderErrorPolicy
-	fileAttachmentCreator            fileAttachmentCreator
+type DefaultFactory struct {
+	ClientProvider                   HTTPClientProvider
+	ProvideClientFunc                func(ctx context.Context) *http.Client
+	ReqPreparer                      HTTPRequestPreparer
+	PrepReqFunc                      func(ctx context.Context, client *http.Client, req *http.Request)
+	WarningTracker                   WarningTracker
+	DetectRedirectsPolicy            DetectRedirectsPolicy
+	ParseMetaDataInHTMLContentPolicy ParseMetaDataInHTMLContentPolicy
+	ContentDownloader                ContentDownloader
+	ContentDownloaderErrorPolicy     ContentDownloaderErrorPolicy
+	FileAttachmentCreator            FileAttachmentCreator
 }
 
-func (f *factory) initOptions(options ...interface{}) {
-	f.warningTracker = f // we implemented a default version
-
+func (f *DefaultFactory) initOptions(options ...interface{}) {
 	for _, option := range options {
-		if wt, ok := option.(warningTracker); ok {
-			f.warningTracker = wt
+		if wt, ok := option.(WarningTracker); ok {
+			f.WarningTracker = wt
 		}
-		if instance, ok := option.(httpClientProvider); ok {
-			f.clientProvider = instance
+		if instance, ok := option.(HTTPClientProvider); ok {
+			f.ClientProvider = instance
 		}
 		if fn, ok := option.(func(ctx context.Context) *http.Client); ok {
-			f.provideClientFunc = fn
+			f.ProvideClientFunc = fn
 		}
-		if instance, ok := option.(httpRequestPreparer); ok {
-			f.reqPreparer = instance
+		if instance, ok := option.(HTTPRequestPreparer); ok {
+			f.ReqPreparer = instance
 		}
 		if fn, ok := option.(func(ctx context.Context, client *http.Client, req *http.Request)); ok {
-			f.prepReqFunc = fn
+			f.PrepReqFunc = fn
 		}
-		if instance, ok := option.(detectRedirectsPolicy); ok {
-			f.detectRedirectsPolicy = instance
+		if instance, ok := option.(DetectRedirectsPolicy); ok {
+			f.DetectRedirectsPolicy = instance
 		}
-		if instance, ok := option.(parseMetaDataInHTMLContentPolicy); ok {
-			f.parseMetaDataInHTMLContentPolicy = instance
+		if instance, ok := option.(ParseMetaDataInHTMLContentPolicy); ok {
+			f.ParseMetaDataInHTMLContentPolicy = instance
 		}
-		if instance, ok := option.(contentDownloader); ok {
-			f.contentDownloader = instance
+		if instance, ok := option.(ContentDownloader); ok {
+			f.ContentDownloader = instance
 		}
-		if instance, ok := option.(contentDownloaderErrorPolicy); ok {
-			f.contentDownloaderErrorPolicy = instance
+		if instance, ok := option.(ContentDownloaderErrorPolicy); ok {
+			f.ContentDownloaderErrorPolicy = instance
 		}
-		if instance, ok := option.(fileAttachmentCreator); ok {
-			f.fileAttachmentCreator = instance
+		if instance, ok := option.(FileAttachmentCreator); ok {
+			f.FileAttachmentCreator = instance
 		}
 	}
 }
 
-func (f *factory) httpClient(ctx context.Context) *http.Client {
-	if f.clientProvider != nil {
-		return f.clientProvider.HTTPClient(ctx)
+func (f *DefaultFactory) httpClient(ctx context.Context) *http.Client {
+	if f.ClientProvider != nil {
+		return f.ClientProvider.HTTPClient(ctx)
 	}
 
-	if f.provideClientFunc != nil {
-		return f.provideClientFunc(ctx)
+	if f.ProvideClientFunc != nil {
+		return f.ProvideClientFunc(ctx)
 	}
 
 	return &http.Client{
@@ -119,32 +120,32 @@ func (f *factory) httpClient(ctx context.Context) *http.Client {
 	}
 }
 
-func (f *factory) prepareHTTPRequest(ctx context.Context, client *http.Client, req *http.Request) {
-	if f.reqPreparer != nil {
-		f.reqPreparer.OnPrepareHTTPRequest(ctx, client, req)
+func (f *DefaultFactory) prepareHTTPRequest(ctx context.Context, client *http.Client, req *http.Request) {
+	if f.ReqPreparer != nil {
+		f.ReqPreparer.OnPrepareHTTPRequest(ctx, client, req)
 	}
 
-	if f.prepReqFunc != nil {
-		f.prepReqFunc(ctx, client, req)
+	if f.PrepReqFunc != nil {
+		f.PrepReqFunc(ctx, client, req)
 	}
 }
 
-func (f *factory) detectRedirectsInHTMLContent(ctx context.Context, url *url.URL) bool {
-	if f.detectRedirectsPolicy != nil {
-		return f.detectRedirectsPolicy.DetectRedirectsInHTMLContent(ctx, url)
+func (f *DefaultFactory) detectRedirectsInHTMLContent(ctx context.Context, url *url.URL) bool {
+	if f.DetectRedirectsPolicy != nil {
+		return f.DetectRedirectsPolicy.DetectRedirectsInHTMLContent(ctx, url)
 	}
 	return true
 }
 
-func (f *factory) parseMetaDataInHTMLContent(ctx context.Context, url *url.URL) bool {
-	if f.parseMetaDataInHTMLContentPolicy != nil {
-		f.parseMetaDataInHTMLContentPolicy.ParseMetaDataInHTMLContent(ctx, url)
+func (f *DefaultFactory) parseMetaDataInHTMLContent(ctx context.Context, url *url.URL) bool {
+	if f.ParseMetaDataInHTMLContentPolicy != nil {
+		f.ParseMetaDataInHTMLContentPolicy.ParseMetaDataInHTMLContent(ctx, url)
 	}
 	return true
 }
 
-// NewPageFromURL creates a content instance from the given URL and policy
-func (f *factory) PageFromURL(ctx context.Context, origURLtext string, options ...interface{}) (Content, error) {
+// PageFromURL creates a content instance from the given URL and policy
+func (f *DefaultFactory) PageFromURL(ctx context.Context, origURLtext string, options ...interface{}) (Content, error) {
 	if len(origURLtext) == 0 {
 		return nil, targetURLIsBlankError(xerrors.Caller(xErrorsFrameCaller))
 	}
@@ -175,7 +176,7 @@ func (f *factory) PageFromURL(ctx context.Context, origURLtext string, options .
 }
 
 // NewPageFromHTTPResponse will download and figure out what kind content we're dealing with
-func (f *factory) pageFromHTTPResponse(ctx context.Context, url *url.URL, resp *http.Response, options ...interface{}) (Content, error) {
+func (f *DefaultFactory) pageFromHTTPResponse(ctx context.Context, url *url.URL, resp *http.Response, options ...interface{}) (Content, error) {
 	result := new(Page)
 	result.MetaPropertyTags = make(map[string]interface{})
 	result.TargetURL = url
@@ -194,11 +195,11 @@ func (f *factory) pageFromHTTPResponse(ctx context.Context, url *url.URL, resp *
 		}
 	}
 
-	if f.contentDownloader != nil {
-		ok, attachment, err := f.contentDownloader.DownloadContent(ctx, url, resp, result.PageType)
+	if f.ContentDownloader != nil {
+		ok, attachment, err := f.ContentDownloader.DownloadContent(ctx, url, resp, result.PageType)
 		if err != nil {
-			if f.contentDownloaderErrorPolicy != nil {
-				if f.contentDownloaderErrorPolicy.StopOnDownloadError(ctx, url, result.PageType, err) {
+			if f.ContentDownloaderErrorPolicy != nil {
+				if f.ContentDownloaderErrorPolicy.StopOnDownloadError(ctx, url, result.PageType, err) {
 					return result, err
 				}
 			}
@@ -211,6 +212,6 @@ func (f *factory) pageFromHTTPResponse(ctx context.Context, url *url.URL, resp *
 	return result, nil
 }
 
-func (f *factory) OnWarning(ctx context.Context, code string, message string) {
+func (f *DefaultFactory) OnWarning(ctx context.Context, code string, message string) {
 	// this is the default function if nothing else is provided in initOptions()
 }

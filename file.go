@@ -51,7 +51,7 @@ func (a *FileAttachment) Delete() {
 
 // DownloadFile will download the URL as an "attachment" to a local file.
 // It's efficient because it will write as it downloads and not load the whole file into memory.
-func DownloadFile(ctx context.Context, creator fileAttachmentCreator, url *url.URL, resp *http.Response, typ Type) (bool, Attachment, error) {
+func DownloadFile(ctx context.Context, creator FileAttachmentCreator, url *url.URL, resp *http.Response, typ Type) (bool, Attachment, error) {
 	if url == nil {
 		return false, nil, fmt.Errorf("url is nil in resource.DownloadFile")
 	}

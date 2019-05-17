@@ -26,7 +26,7 @@ type Page struct {
 	DownloadedAttachment         Attachment             `json:"attachment"`
 
 	valid          bool
-	warningTracker warningTracker
+	warningTracker WarningTracker
 }
 
 func (p *Page) parsePageMetaData(ctx context.Context, url *url.URL, resp *http.Response) error {
