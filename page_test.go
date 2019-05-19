@@ -3,9 +3,9 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/spf13/afero"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"testing"
 
@@ -17,6 +17,7 @@ type ContentSuite struct {
 	fileNum    int
 	httpClient *http.Client
 	factory    Factory
+	rootFS     afero.Fs
 }
 
 func (suite ContentSuite) HTTPClient(ctx context.Context) *http.Client {
@@ -35,22 +36,18 @@ func (suite ContentSuite) ParseMetaDataInHTMLContent(ctx context.Context, url *u
 	return true
 }
 
-// DownloadContent satisfies Policy method
-func (suite *ContentSuite) DownloadContent(ctx context.Context, url *url.URL, resp *http.Response, typ Type) (bool, Attachment, error) {
-	return DownloadFile(ctx, suite, url, resp, typ)
-}
-
 // CreateFile satisfies FileAttachmentPolicy method
-func (suite *ContentSuite) CreateFile(ctx context.Context, url *url.URL, t Type) (*os.File, error) {
+func (suite *ContentSuite) CreateFile(ctx context.Context, url *url.URL, t Type) (afero.Fs, afero.File, error) {
 	pathAndFileName := fmt.Sprintf("tempFile-%d", suite.fileNum)
 	suite.fileNum++
-	destFile, err := os.Create(pathAndFileName)
+	destFile, err := suite.rootFS.Create(pathAndFileName)
 	if err != nil {
-		return nil, err
+		return suite.rootFS, nil, err
 	}
-	return destFile, nil
+	return suite.rootFS, destFile, nil
 }
 
+// AutoAssignExtension satisfies FileAttachmentPolicy method
 func (suite ContentSuite) AutoAssignExtension(ctx context.Context, url *url.URL, t Type) bool {
 	return true
 }
@@ -58,6 +55,7 @@ func (suite ContentSuite) AutoAssignExtension(ctx context.Context, url *url.URL,
 func (suite *ContentSuite) SetupSuite() {
 	suite.httpClient = &http.Client{}
 	suite.factory = NewFactory(suite)
+	suite.rootFS = afero.NewOsFs()
 }
 
 func (suite *ContentSuite) TearDownSuite() {
@@ -132,14 +130,14 @@ func (suite *ContentSuite) TestGoodURLWithAttachment() {
 	suite.True(ok, "Attachment should be a FileAttachment type")
 	if ok {
 		fileExists := false
-		if _, err := os.Stat(fa.DestPath); err == nil {
+		if _, err := suite.rootFS.Stat(fa.DestPath); err == nil {
 			fileExists = true
 		}
 		suite.True(fileExists, "File %s should exist", fa.DestPath)
 		suite.Equal(path.Ext(fa.DestPath), ".pdf", "File's extension should be .pdf")
 
 		fa.Delete()
-		if _, err := os.Stat(fa.DestPath); err == nil {
+		if _, err := suite.rootFS.Stat(fa.DestPath); err == nil {
 			fileExists = true
 		}
 		suite.True(fileExists, "File %s should not exist", fa.DestPath)

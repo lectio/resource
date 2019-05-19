@@ -32,10 +32,6 @@ type ParseMetaDataInHTMLContentPolicy interface {
 	ParseMetaDataInHTMLContent(context.Context, *url.URL) bool
 }
 
-type ContentDownloader interface {
-	DownloadContent(context.Context, *url.URL, *http.Response, Type) (bool, Attachment, error)
-}
-
 type ContentDownloaderErrorPolicy interface {
 	StopOnDownloadError(context.Context, *url.URL, Type, error) bool
 }
@@ -60,7 +56,6 @@ type DefaultFactory struct {
 	WarningTracker                   WarningTracker
 	DetectRedirectsPolicy            DetectRedirectsPolicy
 	ParseMetaDataInHTMLContentPolicy ParseMetaDataInHTMLContentPolicy
-	ContentDownloader                ContentDownloader
 	ContentDownloaderErrorPolicy     ContentDownloaderErrorPolicy
 	FileAttachmentCreator            FileAttachmentCreator
 }
@@ -87,9 +82,6 @@ func (f *DefaultFactory) initOptions(options ...interface{}) {
 		}
 		if instance, ok := option.(ParseMetaDataInHTMLContentPolicy); ok {
 			f.ParseMetaDataInHTMLContentPolicy = instance
-		}
-		if instance, ok := option.(ContentDownloader); ok {
-			f.ContentDownloader = instance
 		}
 		if instance, ok := option.(ContentDownloaderErrorPolicy); ok {
 			f.ContentDownloaderErrorPolicy = instance
@@ -190,8 +182,8 @@ func (f *DefaultFactory) pageFromHTTPResponse(ctx context.Context, url *url.URL,
 		}
 	}
 
-	if f.ContentDownloader != nil {
-		ok, attachment, err := f.ContentDownloader.DownloadContent(ctx, url, resp, result.PageType)
+	if f.FileAttachmentCreator != nil {
+		ok, attachment, err := DownloadFileFromHTTPResp(ctx, f.FileAttachmentCreator, url, resp, result.PageType)
 		if err != nil {
 			if f.ContentDownloaderErrorPolicy != nil {
 				if f.ContentDownloaderErrorPolicy.StopOnDownloadError(ctx, url, result.PageType, err) {
