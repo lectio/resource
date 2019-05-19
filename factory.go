@@ -17,9 +17,6 @@ type Factory interface {
 // NewFactory creates a new thread-safe resource factory
 func NewFactory(options ...interface{}) *DefaultFactory {
 	f := &DefaultFactory{}
-
-	f.WarningTracker = f // we implemented a default version
-
 	f.initOptions(options...)
 	return f
 }
@@ -44,16 +41,11 @@ type HTTPRequestPreparer interface {
 	OnPrepareHTTPRequest(context.Context, *http.Client, *http.Request)
 }
 
-type WarningTracker interface {
-	OnWarning(ctx context.Context, code, message string)
-}
-
 type DefaultFactory struct {
 	ClientProvider                   HTTPClientProvider
 	ProvideClientFunc                func(ctx context.Context) *http.Client
 	ReqPreparer                      HTTPRequestPreparer
 	PrepReqFunc                      func(ctx context.Context, client *http.Client, req *http.Request)
-	WarningTracker                   WarningTracker
 	DetectRedirectsPolicy            DetectRedirectsPolicy
 	ParseMetaDataInHTMLContentPolicy ParseMetaDataInHTMLContentPolicy
 	ContentDownloaderErrorPolicy     ContentDownloaderErrorPolicy
@@ -62,9 +54,6 @@ type DefaultFactory struct {
 
 func (f *DefaultFactory) initOptions(options ...interface{}) {
 	for _, option := range options {
-		if wt, ok := option.(WarningTracker); ok {
-			f.WarningTracker = wt
-		}
 		if instance, ok := option.(HTTPClientProvider); ok {
 			f.ClientProvider = instance
 		}
@@ -197,8 +186,4 @@ func (f *DefaultFactory) pageFromHTTPResponse(ctx context.Context, url *url.URL,
 
 	result.valid = true
 	return result, nil
-}
-
-func (f *DefaultFactory) OnWarning(ctx context.Context, code string, message string) {
-	// this is the default function if nothing else is provided in initOptions()
 }
