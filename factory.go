@@ -21,26 +21,32 @@ func NewFactory(options ...interface{}) *DefaultFactory {
 	return f
 }
 
+// DetectRedirectsPolicy is passed into options if we want to detect redirects inside HTML content (not just HTTP request)
 type DetectRedirectsPolicy interface {
 	DetectRedirectsInHTMLContent(context.Context, *url.URL) bool
 }
 
+// ParseMetaDataInHTMLContentPolicy is passed into options if we want to parse HTML meta data
 type ParseMetaDataInHTMLContentPolicy interface {
 	ParseMetaDataInHTMLContent(context.Context, *url.URL) bool
 }
 
+// ContentDownloaderErrorPolicy is passed into options if we want to stop downloads on error
 type ContentDownloaderErrorPolicy interface {
 	StopOnDownloadError(context.Context, *url.URL, Type, error) bool
 }
 
+// HTTPClientProvider is passed into options if we want a custom HTTP client
 type HTTPClientProvider interface {
 	HTTPClient(context.Context) *http.Client
 }
 
+// HTTPRequestPreparer is passed into options if we want to add user agent or do other HTTP request prep work
 type HTTPRequestPreparer interface {
 	OnPrepareHTTPRequest(context.Context, *http.Client, *http.Request)
 }
 
+// DefaultFactory is the default Content / Page creation factory
 type DefaultFactory struct {
 	ClientProvider                   HTTPClientProvider
 	ProvideClientFunc                func(ctx context.Context) *http.Client
@@ -171,8 +177,18 @@ func (f *DefaultFactory) pageFromHTTPResponse(ctx context.Context, url *url.URL,
 		}
 	}
 
+	var attachmentCreator FileAttachmentCreator
+	for _, option := range options {
+		if instance, ok := option.(FileAttachmentCreator); ok {
+			attachmentCreator = instance
+		}
+	}
 	if f.FileAttachmentCreator != nil {
-		ok, attachment, err := DownloadFileFromHTTPResp(ctx, f.FileAttachmentCreator, url, resp, result.PageType)
+		attachmentCreator = f.FileAttachmentCreator
+	}
+
+	if attachmentCreator != nil {
+		ok, attachment, err := DownloadFileFromHTTPResp(ctx, attachmentCreator, url, resp, result.PageType)
 		if err != nil {
 			if f.ContentDownloaderErrorPolicy != nil {
 				if f.ContentDownloaderErrorPolicy.StopOnDownloadError(ctx, url, result.PageType, err) {
