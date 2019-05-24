@@ -10,6 +10,7 @@ const xErrorsFrameCaller = 1
 
 // Error is coded error for more granular tracking
 type Error struct {
+	URL string
 	Message string
 	Code    int
 	Frame   xerrors.Frame
@@ -17,7 +18,11 @@ type Error struct {
 
 // FormatError will print a simple message to the Printer object. This will be what you see when you Println or use %s/%v in a formatted print statement.
 func (e Error) FormatError(p xerrors.Printer) error {
-	p.Printf("LECTIORES-%d %s", e.Code, e.Message)
+	if len(e.URL) > 0 {
+		p.Printf("LECTIORES-%d %s (%s)", e.Code, e.Message, e.URL)
+	} else {
+		p.Printf("LECTIORES-%d %s", e.Code, e.Message)
+	}
 	e.Frame.Format(p)
 	return nil
 }
@@ -50,29 +55,24 @@ func targetURLIsNilError(frame xerrors.Frame) *Error {
 
 // InvalidHTTPRespStatusCodeError is thrown when the HTTP status code is not 200
 type InvalidHTTPRespStatusCodeError struct {
-	Error
+	URL string
 	HTTPStatusCode int
+	Frame   xerrors.Frame
 }
 
 // FormatError will print a simple message to the Printer object. This will be what you see when you Println or use %s/%v in a formatted print statement.
 func (e InvalidHTTPRespStatusCodeError) FormatError(p xerrors.Printer) error {
-	p.Printf("LECTIORES-%d:%d %s", e.Code, e.HTTPStatusCode, e.Message)
+	p.Printf("LECTIORES-200 Expected HTTP Response Status Code 200, got %d (%s)", e.HTTPStatusCode, e.URL)
 	e.Frame.Format(p)
 	return nil
 }
 
-// const (
-// 	TargetURLIsBlank              string = "RESOURCE_E-0050"
-// 	TargetURLIsNil                string = "RESOURCE_E-0051"
-// 	UnableToCreateHTTPRequest     string = "RESOURCE_E-0100"
-// 	UnableToExecuteHTTPGETRequest string = "RESOURCE_E-0200"
-// 	InvalidHTTPRespStatusCode     string = "RESOURCE_E-0300"
-// 	UnableToParseHTTPBody         string = "RESOURCE_E-0400"
+// Format provide backwards compatibility with pre-xerrors package
+func (e InvalidHTTPRespStatusCodeError) Format(f fmt.State, c rune) {
+	xerrors.FormatError(e, f, c)
+}
 
-// 	UnableToInspectMediaTypeFromContentType string = "RESOURCE_E-0500"
-// 	PolicyIsNil                             string = "RESOURCE_E-0600"
-// 	CopyErrorDuringFileDownload             string = "RESOURCE_E-0700"
-// 	MetaTagsNotAvailableInNonHTMLContent    string = "RESOURCE_W-0100"
-// 	MetaTagsNotAvailableInUnparsedHTML      string = "RESOURCE_W-0101"
-// 	UnableToInspectFileType                 string = "RESOURCE_S-0200"
-// )
+// Format provide backwards compatibility with pre-xerrors package
+func (e InvalidHTTPRespStatusCodeError) Error() string {
+	return fmt.Sprint(e)
+}

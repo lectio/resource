@@ -2,7 +2,6 @@ package resource
 
 import (
 	"context"
-	"fmt"
 	"golang.org/x/xerrors"
 	"net/http"
 	"net/url"
@@ -144,13 +143,10 @@ func (f *DefaultFactory) PageFromURL(ctx context.Context, origURLtext string, op
 	}
 
 	if resp.StatusCode != 200 {
-		err := &InvalidHTTPRespStatusCodeError{
-			Error{Message: fmt.Sprintf("Invalid HTTP Response Status Code: %d", resp.StatusCode),
-				Code:  200,
-				Frame: xerrors.Caller(xErrorsFrameCaller)},
-			resp.StatusCode,
-		}
-		return nil, xerrors.Errorf("Unexpected HTTP Response Status Code: %w", err)
+		return nil, &InvalidHTTPRespStatusCodeError{
+			URL: origURLtext,
+			HTTPStatusCode: resp.StatusCode,
+			Frame: xerrors.Caller(xErrorsFrameCaller)}
 	}
 
 	return f.pageFromHTTPResponse(ctx, resp.Request.URL, resp, options...)
